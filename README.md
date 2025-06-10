@@ -100,6 +100,7 @@ pyinstaller --onefile --windowed --name "ValidadorCSV_PortalPostal" --icon="icon
 O arquivo ValidadorCSV_PortalPostal.exe será criado dentro de uma nova pasta chamada dist.
 
 🤝 Contribuições
+
 Contribuições, issues e sugestões de melhorias são sempre bem-vindos! Sinta-se à vontade para abrir uma issue para discutir uma nova funcionalidade ou relatar um bug.
 
 
