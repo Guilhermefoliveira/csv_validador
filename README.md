@@ -13,7 +13,7 @@ Uma aplicação de desktop robusta, desenvolvida em Python com PyQt6, para valid
     * **Formato**: Corrige automaticamente o formato de CEPs, CPFs/CNPJs e telefones.
     * **Endereços (Opcional)**: Consulta 5 APIs públicas de CEP em sequência para validar e corrigir endereços, bairros, cidades e UFs, aumentando a precisão das entregas.
 * **Flexibilidade de Entrada**:
-    * **Detecção Automática**: Identifica automaticamente o delimitador (`;` ou `,`) e o encoding do arquivo (`UTF-8`, `latin-1`, etc.).
+    * **Detecção Automática**: Identifica automaticamente o delimitador (`;`) e o encoding do arquivo (`UTF-8`, `latin-1`, etc.).
     * **Mapeamento de Colunas**: Permite que o usuário mapeie manualmente as colunas do seu arquivo para os campos padrão do sistema através de uma interface intuitiva.
 * **Controle Total do Usuário**:
     * **Validação Seletiva**: Oferece a opção de executar uma validação rápida (apenas formato) ou uma validação completa com consulta às APIs.
