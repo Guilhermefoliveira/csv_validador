@@ -78,11 +78,16 @@ python validador_gui.py
 
 ⚙️ Como Usar a Aplicação
 Selecione o Arquivo: Clique em "Procurar..." para carregar o seu arquivo CSV.
-Mapeie as Colunas (Opcional): Se os nomes das colunas do seu arquivo forem diferentes do padrão, use os menus suspensos para associar suas colunas às colunas do sistema.
-Escolha o Tipo de Validação: Marque ou desmarque a caixa "Consultar API de CEP..." conforme sua necessidade.
-Valide: Clique em "Validar Arquivo Selecionado".
-Analise os Resultados: Navegue pelas abas "Erros e Avisos" e "Correções Sugeridas".
-Salve o Arquivo: Clique em "Salvar Arquivo...", escolha o local e, se aplicável, decida na caixa de diálogo se deseja aplicar as correções de endereço.
+Mapeie as Colunas (Opcional):
+Se os nomes das colunas do seu arquivo forem diferentes do padrão, use os menus suspensos para associar suas colunas às colunas do sistema.
+Escolha o Tipo de Validação: 
+Marque ou desmarque a caixa "Consultar API de CEP..." conforme sua necessidade.
+Valide: 
+Clique em "Validar Arquivo Selecionado".
+Analise os Resultados: 
+Navegue pelas abas "Erros e Avisos" e "Correções Sugeridas".
+Salve o Arquivo: 
+Clique em "Salvar Arquivo...", escolha o local e, se aplicável, decida na caixa de diálogo se deseja aplicar as correções de endereço.
 
 📦 Como Gerar o Executável (.exe)
 Para distribuir a aplicação como um único arquivo executável para Windows, use o PyInstaller.
