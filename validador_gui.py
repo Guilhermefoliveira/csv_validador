@@ -99,7 +99,7 @@ class ValidadorCSVApp(QWidget):
         self.header_mapping_group.setVisible(False)
         main_layout.addWidget(self.header_mapping_group)
 
-        self.api_checkbox = QCheckBox("Consultar API de CEP para validar endereços (processo mais lento)")
+        self.api_checkbox = QCheckBox("Validar e corrigir endereços via API (processo mais lento)")
         self.api_checkbox.setChecked(True)
         self.api_checkbox.setStyleSheet("QCheckBox { margin-top: 10px; }")
         main_layout.addWidget(self.api_checkbox)

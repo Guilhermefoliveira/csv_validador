@@ -3,8 +3,8 @@ import re
 import os
 import requests
 import json
+import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import traceback 
 from copy import deepcopy
 
 # --- Constantes e Configurações ---
@@ -32,27 +32,36 @@ API_PROVIDERS = [
     {"name": "BrasilAPI", "url": "https://brasilapi.com.br/api/cep/v1/{}", "parser": _parse_brasilapi},
     {"name": "OpenCEP", "url": "https://opencep.com/v1/{}", "parser": _parse_opencep},
     {"name": "Postmon", "url": "https://api.postmon.com.br/v1/cep/{}", "parser": _parse_postmon},
-    {"name": "BrasilAberto", "url": "https://api.brasilaberto.com/v1/zipcode/{}", "parser": _parse_brasilaberto},
     {"name": "ViaCEP", "url": "https://viacep.com.br/ws/{}/json/", "parser": _parse_viacep},
 ]
 
 def consultar_apis_cep(session, cep_numeros):
     if not str(cep_numeros).isdigit() or len(cep_numeros) != 8:
         return None, "Formato de CEP inválido para API."
-    errors = []
+    
+    errors, not_found_count = [], 0
     for provider in API_PROVIDERS:
         try:
             response = session.get(provider["url"].format(cep_numeros), timeout=API_TIMEOUT, headers=REQUEST_HEADERS)
+            
+            if response.status_code == 404:
+                not_found_count += 1
+                continue # Não adiciona erro, apenas tenta o próximo
             response.raise_for_status()
+
             data, err = provider["parser"](response.json())
             if err:
+                if "não encontrado" in err.lower(): not_found_count += 1
                 errors.append(f"({provider['name']}: {err})")
                 continue
             return data, None
-        except requests.exceptions.RequestException as e:
-            errors.append(f"({provider['name']}: {e})")
-            continue
-    return None, f"Falha em todas as APIs. Detalhes: {' | '.join(errors)}"
+        except requests.exceptions.RequestException as e: errors.append(f"({provider['name']}: {e})")
+        except json.JSONDecodeError: errors.append(f"({provider['name']}: Resposta inválida)")
+    
+    if not_found_count >= 2:
+        return None, "CEP não encontrado. Verifique o número ou consulte o site dos Correios."
+    
+    return None, f"Falha na consulta. Detalhes: {' | '.join(errors)}" if errors else "CEP não encontrado."
 
 # --- Funções de Validação e Correção ---
 def tentar_corrigir_cep(v):
@@ -95,7 +104,7 @@ def salvar_csv_processado(caminho_arquivo_saida, dados_para_salvar):
         with open(caminho_arquivo_saida, mode='w', newline='', encoding='utf-8') as f:
             escritor = csv.writer(f, delimiter=';', quoting=csv.QUOTE_MINIMAL)
             for linha in dados_para_salvar:
-                linha_limpa = [re.sub(r'\s+', ' ', str(campo)).strip() for campo in linha]
+                linha_limpa = [re.sub(r'\s+', ' ', str(campo if campo is not None else '')).strip() for campo in linha]
                 escritor.writerow(linha_limpa)
         return True, f"Arquivo salvo com sucesso em: {caminho_arquivo_saida}"
     except IOError as e: return False, f"Erro de E/S ao salvar o arquivo: {e}"
@@ -109,6 +118,7 @@ def validar_csv(caminho_arquivo, header_map=None, usar_api=True):
         return [msg or "Erro desconhecido"], [], [], [], [], []
 
     avisos = [msg] if msg else []
+    
     with open(caminho_arquivo, 'r', encoding=encoding, newline='') as f:
         linhas_originais = list(csv.DictReader(f, delimiter=delimitador))
 
@@ -132,27 +142,41 @@ def validar_csv(caminho_arquivo, header_map=None, usar_api=True):
 
     for i, linha_dict in enumerate(linhas_originais, start=2):
         if not any(linha_dict.values()): continue
-        
-        # 1. Mapeia para o formato do sistema
+
+        # 1. Mapeia os dados da linha para o formato do sistema
         valores_proc = {}
-        mapa_auto = {h.upper(): h for h in EXPECTED_HEADER}
+        mapa_auto = {h: h for h in EXPECTED_HEADER}
         for col_orig, val in linha_dict.items():
+            if not col_orig: continue
             col_sistema = (header_map or {}).get(col_orig, mapa_auto.get(col_orig.upper()))
             if col_sistema:
-                valores_proc[col_sistema] = val.strip()
+                valores_proc[col_sistema] = val if val else ""
         
-        # Cria cópias para os diferentes tipos de correção
-        valores_com_formato_apenas = deepcopy(valores_proc)
+        # 2. Sanitização dos dados
+        valores_sanitizados = {}
+        for col, val in valores_proc.items():
+            val_original = str(val).strip()
+            # Remove aspas, ponto e vírgula e normaliza espaços
+            val_sanitizado = re.sub(r'\s+', ' ', val_original.replace('"', '').replace(';', ' ')).strip()
+            if val_original != val_sanitizado:
+                correcoes_totais.append({"linha": i, "coluna": col, "original": val_original, "corrigido": val_sanitizado, "fonte": "Limpeza"})
+            valores_sanitizados[col] = val_sanitizado
         
-        # 2. Aplica correções de formato
+        # 3. Cria cópias para os diferentes tipos de correção
+        valores_com_formato = deepcopy(valores_sanitizados)
+        
+        # 4. Aplica correções de formato
         for col, regra in VALIDATION_RULES.items():
-            if "correcao" in regra and col in valores_com_formato_apenas:
-                valores_com_formato_apenas[col] = regra["correcao"](valores_com_formato_apenas[col])
+            if "correcao" in regra and col in valores_com_formato:
+                val_original_formato = valores_com_formato[col]
+                val_corrigido_formato = regra["correcao"](val_original_formato)
+                if val_original_formato != val_corrigido_formato:
+                    correcoes_totais.append({"linha": i, "coluna": col, "original": val_original_formato, "corrigido": val_corrigido_formato, "fonte": "Formato"})
+                valores_com_formato[col] = val_corrigido_formato
         
-        # Começa a versão "completa" com as correções de formato já aplicadas
-        valores_com_tudo = deepcopy(valores_com_formato_apenas)
+        valores_com_tudo = deepcopy(valores_com_formato)
 
-        # 3. Aplica correções da API na versão "completa"
+        # 5. Aplica correções da API
         if usar_api:
             cep_num = re.sub(r'\D', '', valores_com_tudo.get("CEP", ""))
             if cep_num in cep_cache:
@@ -162,16 +186,12 @@ def validar_csv(caminho_arquivo, header_map=None, usar_api=True):
                     mapa_api = {"logradouro":"ENDERECO", "bairro":"BAIRRO", "cidade":"CIDADE", "uf":"UF"}
                     for api_key, csv_key in mapa_api.items():
                         v_api = dados_api.get(api_key,"").strip()
-                        if v_api and v_api.upper() != valores_com_tudo.get(csv_key, "").upper():
+                        v_csv = valores_com_tudo.get(csv_key, "").strip()
+                        if v_api and v_api.upper() != v_csv.upper():
+                            correcoes_totais.append({"linha": i, "coluna": csv_key, "original": v_csv, "corrigido": v_api, "fonte": "API"})
                             valores_com_tudo[csv_key] = v_api
         
-        # 4. Compara o original com o totalmente corrigido para gerar a lista de sugestões
-        for col in valores_com_tudo:
-            if valores_proc.get(col) != valores_com_tudo[col]:
-                fonte = "API" if col in ["ENDERECO", "BAIRRO", "CIDADE", "UF"] and usar_api else "Formato"
-                correcoes_totais.append({"linha": i, "coluna": col, "original": valores_proc.get(col), "corrigido": valores_com_tudo[col], "fonte": fonte})
-        
-        # 5. Valida a versão totalmente corrigida
+        # 6. Valida a versão totalmente corrigida
         for col, val in valores_com_tudo.items():
             if col in COLUNAS_OBRIGATORIAS and not val:
                 erros_totais.append({"linha": i, "coluna": col, "mensagem": "Campo obrigatório está vazio."})
@@ -180,13 +200,13 @@ def validar_csv(caminho_arquivo, header_map=None, usar_api=True):
                 if "validacao" in regra and not regra["validacao"](val):
                     erros_totais.append({"linha": i, "coluna": col, "mensagem": regra.get("msg", "Inválido")})
 
-        # 6. Monta as duas linhas de saída
+        # 7. Monta as duas versões da linha de saída
         linha_final_formato, linha_final_api = [], []
         for nome_col_original in cabecalho_original:
-            coluna_sistema = (header_map or {h.upper():h for h in EXPECTED_HEADER}).get(nome_col_original.upper(), nome_col_original)
+            coluna_sistema = (header_map or {h:h for h in EXPECTED_HEADER}).get(nome_col_original, nome_col_original.upper())
             
             if coluna_sistema in EXPECTED_HEADER:
-                linha_final_formato.append(valores_com_formato_apenas.get(coluna_sistema, ""))
+                linha_final_formato.append(valores_com_formato.get(coluna_sistema, ""))
                 linha_final_api.append(valores_com_tudo.get(coluna_sistema, ""))
             else:
                 original_val = linha_dict.get(nome_col_original, "")
