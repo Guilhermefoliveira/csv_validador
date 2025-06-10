@@ -1,6 +1,6 @@
 # Validador e Corretor de Arquivos CSV - PortalPostal
 
-([https://imgur.com/WGhiblj](https://imgur.com/WGhiblj))
+[https://imgur.com/WGhiblj](https://imgur.com/WGhiblj)
 
 Uma aplicação de desktop robusta, desenvolvida em Python com PyQt6, para validar, corrigir e padronizar arquivos CSV de postagem. A ferramenta foi projetada para otimizar o fluxo de trabalho, garantindo a integridade dos dados antes da importação na plataforma web Portal Postal.
 
