@@ -2,7 +2,7 @@
 
 ![Demonstração da Aplicação](https://i.imgur.com/g8R3i1c.png)
 
-Uma aplicação de desktop robusta, desenvolvida em Python com PyQt6, para validar, corrigir e padronizar arquivos CSV de postagem. A ferramenta foi projetada para otimizar o fluxo de trabalho, garantindo a integridade dos dados antes do envio para sistemas de logística.
+Uma aplicação de desktop robusta, desenvolvida em Python com PyQt6, para validar, corrigir e padronizar arquivos CSV de postagem. A ferramenta foi projetada para otimizar o fluxo de trabalho, garantindo a integridade dos dados antes da importação na plataforma web Portal Postal.
 
 ---
 
