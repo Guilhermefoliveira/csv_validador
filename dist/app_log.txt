@@ -1,0 +1,6 @@
+2025-07-18 14:17:43,137 - INFO - Aplicação iniciada.
+2025-07-18 14:17:52,637 - INFO - Interface limpa pelo usuário.
+2025-07-18 14:17:52,637 - INFO - Arquivo selecionado: C:/Users/PC022/Downloads/teste1 (1).csv
+2025-07-18 14:17:52,638 - INFO - Cabeçalho lido com sucesso. Detalhes: Lido com encoding 'utf-8-sig' e delimitador ';'.
+2025-07-18 14:18:30,921 - INFO - Iniciando validação para o arquivo: C:/Users/PC022/Downloads/teste1 (1).csv. Uso de API: True
+2025-07-18 14:18:32,349 - INFO - Validação concluída com sucesso na thread.

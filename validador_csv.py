@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
 
 # --- Constantes e Configurações ---
-EXPECTED_HEADER = ["NOME","EMPRESA","CPF","CEP","ENDERECO","NUMERO","COMPLEMENTO","BAIRRO","CIDADE","UF","AOS_CUIDADOS","NOTA_FISCAL","SERVICO","SERV_ADICIONAIS","VALOR_DECLARADO","OBSERVAÇÕES","CONTEUDO","DDD","TELEFONE","EMAIL","CHAVE","PESO","ALTURA","LARGURA","COMPRIMENTO","ENTREGA_VIZINHO","RFID"]
+EXPECTED_HEADER = ["NOME","EMPRESA","CPF","CEP","ENDERECO","NUMERO","COMPLEMENTO","BAIRRO","CIDADE","UF","AOS_CUIDADOS","NOTA_FISCAL","CHAVE_NFE","SERVICO","SERV_ADICIONAIS","VALOR_DECLARADO","OBSERVAÇÕES","CONTEUDO","DDD","TELEFONE","EMAIL","CHAVE","PESO","ALTURA","LARGURA","COMPRIMENTO","ENTREGA_VIZINHO","RFID"]
 COLUNAS_OBRIGATORIAS = {"NOME", "CEP", "ENDERECO", "NUMERO", "BAIRRO", "CIDADE", "UF"}
 API_TIMEOUT = 15
 MAX_CONCURRENT_REQUESTS = 2
@@ -18,6 +18,7 @@ REGEX_TELEFONE = r"^\d{10,11}$"
 REGEX_CPF = r"^\d{3}\.\d{3}\.\d{3}-\d{2}$|^\d{11}$"
 REGEX_CNPJ = r"^\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}$|^\d{14}$"
 REGEX_EMAIL = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+REGEX_CHAVE_NFE = r"^\d{44}$"
 
 # --- Funções de API e Parsers ---
 def _parse_viacep(r): return {"logradouro":r.get("logradouro"),"bairro":r.get("bairro"),"cidade":r.get("localidade"),"uf":r.get("uf")}, None if not r.get("erro") else "CEP não encontrado"
@@ -29,10 +30,11 @@ def _parse_brasilaberto(r):
     return {"logradouro":result.get("street"),"bairro":result.get("district"),"cidade":result.get("city"),"uf":result.get("stateShortname")}, None
 
 API_PROVIDERS = [
+    {"name": "ViaCEP", "url": "https://viacep.com.br/ws/{}/json/", "parser": _parse_viacep},
     {"name": "BrasilAPI", "url": "https://brasilapi.com.br/api/cep/v1/{}", "parser": _parse_brasilapi},
     {"name": "OpenCEP", "url": "https://opencep.com/v1/{}", "parser": _parse_opencep},
     {"name": "Postmon", "url": "https://api.postmon.com.br/v1/cep/{}", "parser": _parse_postmon},
-    {"name": "ViaCEP", "url": "https://viacep.com.br/ws/{}/json/", "parser": _parse_viacep},
+    
 ]
 
 def consultar_apis_cep(session, cep_numeros):
@@ -77,12 +79,16 @@ def tentar_corrigir_cpf_cnpj(v):
 
 def corrigir_telefone(v): return re.sub(r'\D', '', str(v))
 
+def corrigir_chave_nfe(v):
+    return re.sub(r'\D', '', str(v))
+
 VALIDATION_RULES = {
     "NOME": {"validacao": (lambda v: len(v) <= 100), "msg": "Excede 100 caracteres."},
     "CEP": {"correcao": tentar_corrigir_cep, "validacao": (lambda v: re.match(REGEX_CEP, v)), "msg": "Formato inválido. Use NNNNN-NNN."},
     "TELEFONE": {"correcao": corrigir_telefone, "validacao": (lambda v: re.match(REGEX_TELEFONE, v)), "msg": "Deve ter 10 ou 11 dígitos."},
     "CPF": {"correcao": tentar_corrigir_cpf_cnpj, "validacao": (lambda v: re.match(REGEX_CPF, v) or re.match(REGEX_CNPJ, v)), "msg": "Formato de CPF/CNPJ inválido."},
     "EMAIL": {"validacao": (lambda v: re.match(REGEX_EMAIL, v)), "msg": "Formato de e-mail inválido."},
+    "CHAVE_NFE": {"validacao": (lambda v: re.match(REGEX_CHAVE_NFE, v)), "msg": "Deve conter 44 dígitos numéricos."},
 }
 
 # --- Funções de Leitura e Escrita ---
@@ -217,3 +223,74 @@ def validar_csv(caminho_arquivo, header_map=None, usar_api=True):
         dados_com_api.append(linha_final_api)
         
     return [], sorted(list(set(avisos))), erros_totais, correcoes_totais, dados_apenas_formato, dados_com_api
+
+def validar_csv_completo(caminho_arquivo, header_map=None, usar_api=True):
+    try:
+        erros, avisos, erros_totais, correcoes_totais, dados_apenas_formato, dados_com_api = validar_csv(caminho_arquivo, header_map, usar_api)
+        if erros_totais or avisos:
+            return False, avisos, erros_totais, correcoes_totais, dados_apenas_formato, dados_com_api
+        return True, avisos, [], correcoes_totais, dados_apenas_formato, dados_com_api
+    except Exception as e:
+        return False, [f"Erro inesperado: {e}\n{traceback.format_exc()}"], [], [], [], []
+    
+def validar_csv_arquivo(caminho_arquivo, header_map=None, usar_api=True):
+    if not os.path.isfile(caminho_arquivo):
+        return False, ["Arquivo não encontrado."], [], [], [], []
+    
+    if not caminho_arquivo.lower().endswith('.csv'):
+        return False, ["O arquivo deve ser um CSV."], [], [], [], []
+    
+    return validar_csv_completo(caminho_arquivo, header_map, usar_api)
+
+def validar_csv_conteudo(conteudo_csv, header_map=None, usar_api=True):
+    from io import StringIO
+    if not conteudo_csv.strip():
+        return False, ["Conteúdo CSV vazio."], [], [], [], []
+    
+    try:
+        # Cria um arquivo temporário em memória
+        with StringIO(conteudo_csv) as f:
+            return validar_csv_completo(f, header_map, usar_api)
+    except Exception as e:
+        return False, [f"Erro ao processar conteúdo CSV: {e}\n{traceback.format_exc()}"], [], [], [], []
+def validar_csv_linhas(linhas_csv, header_map=None, usar_api=True):
+    from io import StringIO
+    if not linhas_csv:
+        return False, ["Lista de linhas CSV vazia."], [], [], [], []
+    
+    conteudo_csv = "\n".join(linhas_csv)
+    return validar_csv_conteudo(conteudo_csv, header_map, usar_api)
+def validar_csv_linhas_completa(linhas_csv, header_map=None, usar_api=True):
+    from io import StringIO
+    if not linhas_csv:
+        return False, ["Lista de linhas CSV vazia."], [], [], [], []
+    
+    conteudo_csv = "\n".join(linhas_csv)
+    try:
+        with StringIO(conteudo_csv) as f:
+            return validar_csv_completo(f, header_map, usar_api)
+    except Exception as e:
+        return False, [f"Erro ao processar conteúdo CSV: {e}\n{traceback.format_exc()}"], [], [], [], []
+def validar_csv_linhas_arquivo(linhas_csv, caminho_arquivo, header_map=None, usar_api=True):
+    from io import StringIO
+    if not linhas_csv:
+        return False, ["Lista de linhas CSV vazia."], [], [], [], []
+    
+    conteudo_csv = "\n".join(linhas_csv)
+    try:
+        with StringIO(conteudo_csv) as f:
+            return validar_csv_completo(caminho_arquivo, header_map, usar_api)
+    except Exception as e:
+        return False, [f"Erro ao processar conteúdo CSV: {e}\n{traceback.format_exc()}"], [], [], [], []
+def validar_csv_linhas_arquivo_completo(linhas_csv, caminho_arquivo, header_map=None, usar_api=True):
+    from io import StringIO
+    if not linhas_csv:
+        return False, ["Lista de linhas CSV vazia."], [], [], [], []
+    
+    conteudo_csv = "\n".join(linhas_csv)
+    try:
+        with StringIO(conteudo_csv) as f:
+            return validar_csv_completo(caminho_arquivo, header_map, usar_api)
+    except Exception as e:
+        return False, [f"Erro ao processar conteúdo CSV: {e}\n{traceback.format_exc()}"], [], [], [], []
+    
