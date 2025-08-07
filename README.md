@@ -78,8 +78,10 @@ python validador_gui.py
 
 ⚙️ Como Usar a Aplicação
 Selecione o Arquivo: Clique em "Procurar..." para carregar o seu arquivo CSV.
+
 Mapeie as Colunas (Opcional):
 Se os nomes das colunas do seu arquivo forem diferentes do padrão, use os menus suspensos para associar suas colunas às colunas do sistema.
+
 Escolha o Tipo de Validação: 
 Marque ou desmarque a caixa "Consultar API de CEP..." conforme sua necessidade.
 
